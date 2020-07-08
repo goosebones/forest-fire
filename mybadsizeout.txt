@@ -1,5 +1,0 @@
-+-------------+
-| FOREST FIRE |
-+-------------+
-
-ERROR: invalid grid size

@@ -1,5 +1,0 @@
-+-------------+
-| FOREST FIRE |
-+-------------+
-
-ERROR: invalid character in grid
