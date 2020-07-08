@@ -1,0 +1,115 @@
+Load map
+========
+
+Module:  forestfire.obj
+ Text segment:  2112 bytes, load point 0x00400000
+ Data segment:  2064 bytes, load point 0x10000000
+ Symbols:
+                Name Section Mode    Value
+            genHeadL   Data   R   0x100000ad
+       arrayUpperPad   Data   R   0x100000c7
+            genHeadR   Data   R   0x100000b4
+  errorGridCharacter   Data   R   0x1000005f
+       printEachLine   Text   R   0x00400710
+      treeSpreadEast   Text   R   0x00400480
+      treeSpreadWest   Text   R   0x004004a0
+          printChars   Text   R   0x004007e0
+      treeSpreadLoop   Text   R   0x004003f4
+       printGridLine   Text   R   0x00400764
+        eachLineDone   Text   R   0x00400730
+       errorGridSize   Data   R   0x10000000
+           buff_char   Data   R   0x100000c1
+    treeSpreadRepeat   Text   R   0x004004ec
+                FS12          A   0x0000000c
+        notGrassCell   Text   R   0x00400414
+             getGrid   Text   R   0x00400108
+                FS16          A   0x00000010
+           printGrid   Text   R   0x004006b4
+            treeCell   Text   R   0x004002f4
+     treeSpreadNorth   Text   R   0x00400450
+         doneReading   Text   R   0x004005d4
+                junk   Data   R   0x100000c3
+            keepTree   Text   R   0x00400364
+                FS20          A   0x00000014
+            READ_INT          A   0x00000005
+       simTreeSpread   Text   R   0x004003b4
+            simulate   Text   R   0x00400138
+                FS24          A   0x00000018
+  errorWindDirection   Data   R   0x10000040
+     treeSpreadSouth   Text   R   0x00400464
+                 FS4          A   0x00000004
+                 FS8          A   0x00000008
+                exit   Text   R   0x00400124
+         changeGrass   Text   R   0x004004d8
+             newline   Data   R   0x100000ab
+           copyBytes   Text   R   0x0040053c
+            burnTree   Text   R   0x00400378
+            copyDone   Text   R   0x00400560
+      getInitialGrid   Text   R   0x00400578
+          notBurning   Text   R   0x00400254
+         simTreeBurn   Text   R   0x00400298
+        treeBurnEast   Text   R   0x00400340
+        treeBurnWest   Text   R   0x00400324
+        simulateLoop   Text   R   0x0040016c
+     simBurningCells   Text   R   0x00400208
+       treeBurnNorth   Text   R   0x004002fc
+        treeBurnLoop   Text   R   0x004002d0
+           linesDone   Text   R   0x0040079c
+      printGridChars   Text   R   0x004007c0
+         badGridChar   Text   R   0x00400634
+      treeSpreadDone   Text   R   0x004004f8
+           copyArray   Text   R   0x00400518
+   printLineSegments   Text   R   0x00400780
+         badGenCount   Text   R   0x004000dc
+       getGridReturn   Text   R   0x0040065c
+       treeBurnSouth   Text   R   0x00400314
+    badWindDirection   Text   R   0x004000f0
+           charsDone   Text   R   0x00400818
+        PRINT_STRING          A   0x00000004
+      treeBurnRepeat   Text   R   0x0040038c
+                main   Text   RG  0x00400000
+              char_.   Data   R   0x10000087
+         burningCell   Text   R   0x00400260
+               doSim   Text   R   0x00400118
+           grassCell   Text   R   0x00400418
+           char_dash   Data   R   0x100000bd
+              char_B   Data   R   0x10000085
+              char_E   Data   R   0x10000082
+       arrayLowerPad   Data   R   0x10000469
+         badGridSize   Text   R   0x004000c8
+              newGen   Data   R   0x10000487
+            goodChar   Text   R   0x0040064c
+              char_N   Data   R   0x10000081
+             banner1   Data   R   0x10000089
+              char_S   Data   R   0x10000083
+             banner2   Data   R   0x1000009a
+           burnsDone   Text   R   0x00400280
+              char_W   Data   R   0x10000084
+          burnRepeat   Text   R   0x00400274
+           char_line   Data   R   0x100000bf
+           char_star   Data   R   0x10000088
+    errorGenerations   Data   R   0x1000001a
+   advanceGeneration   Text   R   0x004001a8
+         printBanner   Text   R   0x0040066c
+           keepGrass   Text   R   0x004004c4
+           char_plus   Data   R   0x100000bb
+           checkGrid   Text   R   0x004005f8
+       windDirection   Data   R   0x100000c5
+         notTreeCell   Text   R   0x004002f0
+               array   Data   R   0x100000e5
+              char_t   Data   R   0x10000086
+            simBurns   Text   R   0x00400234
+         READ_STRING          A   0x00000008
+   goodWindDirection   Text   R   0x00400104
+           PRINT_INT          A   0x00000001
+            goodGrid   Text   R   0x00400654
+        simulateDone   Text   R   0x00400190
+        treeBurnDone   Text   R   0x00400398
+            readGrid   Text   R   0x00400594
+
+Module:  r2k_startup.obj
+ Text segment:  36 bytes, load point 0x00400840
+ Symbols:
+                Name Section Mode    Value
+           SYS_EXIT2          A   0x00000011
+      __r2k__entry__   Text   RG  0x00400844

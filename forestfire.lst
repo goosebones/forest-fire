@@ -1,0 +1,1607 @@
+   1 0000               #
+   2 0000               # FILE:		$File$
+   3 0000               # AUTHOR:	Gunther Kroth, gdk6217@rit.edu
+   4 0000               #
+   5 0000               # DESCRIPTION:
+   6 0000               #	This program is an implementation of a forest fire simulation
+   7 0000               #
+   8 0000               # ARGUMENTS:
+   9 0000               #	None
+  10 0000               #
+  11 0000               # INPUT:
+  12 0000               #	First line - size of square grid, integer
+  13 0000               #	Second line - number of generations to run, integer
+  14 0000               #	Third line - wind direction, character
+  15 0000               #	n lines remainding - string representation of a strip of forest
+  16 0000               #
+  17 0000               # OUTPUT:
+  18 0000               #	Formatted string representations of generations from the forest
+  19 0000               #
+  20 0000               # ----------------------------------------------------------------------------
+  21 0000               
+  22 0000               #
+  23 0000               # CONSTANTS
+  24 0000               #
+  25 0000               
+  26 0000               # syscall codes
+  27 0000               PRINT_INT = 	1
+  28 0000               PRINT_STRING =	4
+  29 0000               READ_INT = 	5
+  30 0000               READ_STRING = 	8
+  31 0000               
+  32 0000               # framesizes
+  33 0000               FS24 = 		24
+  34 0000               FS20 = 		20
+  35 0000               FS16 = 		16
+  36 0000               FS12 = 		12
+  37 0000               FS8 =           8
+  38 0000               FS4 = 		4
+  39 0000               
+  40 0000               #
+  41 0000               # DATA AREAS
+  42 0000               #
+  43 0000               	.data
+  44 0000               	.align	0 		# string data doesn't have to be aligned
+  45 0000               
+  46 0000               # _error strings
+  47 0000               errorGridSize:
+  48 0000 4552524F		.asciiz "ERROR: invalid grid size\n"
+          523A2069
+          6E76616C
+          69642067
+          72696420
+          73697A65
+  49 001a               errorGenerations:
+  50 001a 4552524F		.asciiz "ERROR: invalid number of generations\n"
+          523A2069
+          6E76616C
+          6964206E
+          756D6265
+          72206F66
+  51 0040               errorWindDirection:
+  52 0040 4552524F		.asciiz "ERROR: invalid wind direction\n"
+          523A2069
+          6E76616C
+          69642077
+          696E6420
+          64697265
+  53 005f               errorGridCharacter:
+  54 005f 4552524F		.asciiz	"ERROR: invalid character in grid\n"
+          523A2069
+          6E76616C
+          69642063
+          68617261
+          63746572
+  55 0081               
+  56 0081               # wind directions
+  57 0081               char_N:
+  58 0081 4E      		.ascii	"N"
+  59 0082               char_E:
+  60 0082 45      		.ascii	"E"
+  61 0083               char_S:
+  62 0083 53      		.ascii	"S"
+  63 0084               char_W:
+  64 0084 57      		.ascii	"W"
+  65 0085               
+  66 0085               # grid characters
+  67 0085               char_B:
+  68 0085 42      		.ascii 	"B"
+  69 0086               char_t:
+  70 0086 74      		.ascii	"t"
+  71 0087               char_.:
+  72 0087 2E      		.ascii	"."
+  73 0088               char_star:
+  74 0088 2A      		.ascii	"*"
+  75 0089               
+  76 0089               # banner prints
+  77 0089               banner1:
+  78 0089 2B2D2D2D		.asciiz	"+-------------+\n"
+          2D2D2D2D
+          2D2D2D2D
+          2D2D2B0A
+          00      
+  79 009a               banner2:
+  80 009a 7C20464F		.asciiz "| FOREST FIRE |\n"
+          52455354
+          20464952
+          45207C0A
+          00      
+  81 00ab               newline:
+  82 00ab 0A00    		.asciiz "\n"
+  83 00ad               
+  84 00ad               # generation prints
+  85 00ad               genHeadL:
+  86 00ad 3D3D3D3D		.asciiz	"==== #"
+          202300  
+  87 00b4               genHeadR:
+  88 00b4 203D3D3D		.asciiz " ====\n"
+          3D0A00  
+  89 00bb               char_plus:
+  90 00bb 2B00    		.asciiz	"+"
+  91 00bd               char_dash:
+  92 00bd 2D00    		.asciiz	"-"
+  93 00bf               char_line:
+  94 00bf 7C00    		.asciiz	"|"
+  95 00c1               
+  96 00c1               # used to pull chars from the forest array and print them using print_string
+  97 00c1               buff_char:
+  98 00c1 5100    		.asciiz	"Q"
+  99 00c3               
+ 100 00c3               # junk holder used to absorb newline characters when processing input
+ 101 00c3               junk:
+ 102 00c3 5100    		.asciiz "Q"
+ 103 00c5               
+ 104 00c5               # simulation variable storage
+ 105 00c5               windDirection:
+ 106 00c5 5100    		.asciiz "Q"
+ 107 00c7               
+ 108 00c7               # used as a way to prevent out-of-bounds when checking northern neighbors
+ 109 00c7               arrayUpperPad:
+ 110 00c7 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 111 00e5               # forest grid, sized to the largest possible 30x30 grid
+ 112 00e5               array:
+ 113 00e5 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 114 0103 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 115 0121 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 116 013f 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 117 015d 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 118 017b 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 119 0199 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 120 01b7 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 121 01d5 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 122 01f3 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 123 0211 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 124 022f 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 125 024d 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 126 026b 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 127 0289 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 128 02a7 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 129 02c5 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 130 02e3 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 131 0301 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 132 031f 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 133 033d 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 134 035b 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 135 0379 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 136 0397 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 137 03b5 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 138 03d3 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 139 03f1 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 140 040f 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 141 042d 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 142 044b 2A2A2A2A		.ascii	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 143 0469               # used as a way to prevent out-of-bounds when checking southern neighbors
+ 144 0469               arrayLowerPad:
+ 145 0469 2A2A2A2A		.ascii	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 146 0487               
+ 147 0487               # secondary 30x30 grid used for generating the new generations
+ 148 0487               # used because a new generation cannot be computed in place
+ 149 0487               newGen:
+ 150 0487 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 151 04a5 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 152 04c3 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 153 04e1 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 154 04ff 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 155 051d 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 156 053b 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 157 0559 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 158 0577 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 159 0595 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 160 05b3 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 161 05d1 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 162 05ef 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 163 060d 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 164 062b 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 165 0649 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 166 0667 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 167 0685 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 168 06a3 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 169 06c1 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 170 06df 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 171 06fd 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 172 071b 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 173 0739 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 174 0757 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 175 0775 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 176 0793 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 177 07b1 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 178 07cf 2A2A2A2A		.ascii 	"******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 179 07ed 2A2A2A2A		.asciiz "******************************"
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+          2A2A2A2A
+ 180 080c               
+ 181 080c               # ----------------------------------------------------------------------------
+ 182 080c               
+ 183 080c               #
+ 184 080c               # CODE AREAS
+ 185 080c               #
+ 186 0000               	.text		# this is program code
+ 187 0000               	.align 2	# instructions must be made on word boundires
+ 188 0000               
+ 189 0000               	.globl	main	# main is a global label
+ 190 0000               
+ 191 0000               #
+ 192 0000               # EXECUTION BEGINS HERE
+ 193 0000               #
+ 194 0000               
+ 195 0000               #
+ 196 0000               # Name:		Main
+ 197 0000               #
+ 198 0000               # Description:	Main logic for the program.
+ 199 0000               #
+ 200 0000               #		The program reads n+3 values from standard input:
+ 201 0000               #		1) an integer representing the side length of the grid, n
+ 202 0000               #		2) an interger representing the number of generations to run
+ 203 0000               #		3) a character representing the wind direction
+ 204 0000               #		n) strings representing a stip of the forest grid
+ 205 0000               #
+ 206 0000               
+ 207 0000               main:
+ 208 0000               	# stack frame
+ 209 0000 23BDFFF4		addi	$sp, $sp, -FS12
+ 210 0004 AFBF0008		sw	$ra, -4+FS12($sp)
+ 211 0008 AFB10004		sw	$s1, -8+FS12($sp)
+ 212 000c AFB00000		sw	$s0, -12+FS12($sp)
+ 213 0010               
+ 214 0010               	# print program banner
+ 215 0010 0C00019B		jal	printBanner
+ 216 0014               
+ 217 0014               	# read grid size
+ 218 0014 34100000		li	$s0, 0
+ 219 0018 34020005		li	$v0, READ_INT
+ 220 001c 0000000C		syscall
+ 221 0020               
+ 222 0020               	# bound checking for gridSize
+ 223 0020 340F0004		li	$t7, 4				# lower bound
+ 224 0024 3418001E		li	$t8, 30				# upper bound
+ 225 0028 004FC82A		slt	$t9, $v0, $t7			# if (gridSize < 4)
+ 226 002c 17200026		bne	$t9, $zero, badGridSize		# error
+ 227 0030 0302C82A		slt	$t9, $t8, $v0			# if (30 < gridSize)
+ 228 0034 17200024		bne	$t9, $zero, badGridSize		# error
+ 229 0038 00408021		move	$s0, $v0			# s0 = gridSize
+ 230 003c               
+ 231 003c               	# read number of generations
+ 232 003c 34110000		li	$s1, 0
+ 233 0040 34020005		li	$v0, READ_INT
+ 234 0044 0000000C		syscall
+ 235 0048               
+ 236 0048               	# bound checking for genCount
+ 237 0048 340F0000		li	$t7, 0				# lower bound
+ 238 004c 34180014		li	$t8, 20				# uper bound
+ 239 0050 004FC82A		slt	$t9, $v0, $t7			# if (genCount < 0)
+ 240 0054 17200021		bne	$t9, $zero, badGenCount		# error
+ 241 0058 0302C82A		slt	$t9, $t8, $v0			# if (20 < genCount)
+ 242 005c 1720001F		bne	$t9, $zero, badGenCount		# error
+ 243 0060 00408821		move	$s1, $v0			# s1 = genCount
+ 244 0064               
+ 245 0064               	# read wind direction
+ 246 0064 3C040000		la	$a0, windDirection		# windDirect stored in reserve
+     0068 34840000
+ 247 006c 20050002		addi	$a1, $zero, 2
+ 248 0070 34020008		li	$v0, READ_STRING
+ 249 0074 0000000C		syscall
+ 250 0078               
+ 251 0078               	# get rid of newline character in the input stream
+ 252 0078 3C040000		la	$a0, junk			# junk is a reserved byte
+     007c 34840000
+ 253 0080 20050002		addi	$a1, $zero, 2
+ 254 0084 34020008		li	$v0, READ_STRING
+ 255 0088 0000000C		syscall
+ 256 008c               
+ 257 008c               	# check for valid wind direction
+ 258 008c 3C010000		lbu 	$t4, windDirection		# char at reserved location
+     0090 902C0000
+ 259 0094 3C010000		lbu	$t5, char_N
+     0098 902D0000
+ 260 009c 118D0019		beq	$t4, $t5, goodWindDirection	# check for North
+ 261 00a0 3C010000		lbu	$t6, char_E
+     00a4 902E0000
+ 262 00a8 118E0016		beq	$t4, $t6, goodWindDirection	# check for East
+ 263 00ac 3C010000		lbu	$t7, char_S
+     00b0 902F0000
+ 264 00b4 118F0013		beq	$t4, $t7, goodWindDirection	# check for South
+ 265 00b8 3C010000		lbu	$t8, char_W
+     00bc 90380000
+ 266 00c0 11980010		beq	$t4, $t8, goodWindDirection	# check for West
+ 267 00c4               	# _if character made it this far, then windDirection is invalid
+ 268 00c4 0800003C		j	badWindDirection
+ 269 00c8               
+ 270 00c8               badGridSize:
+ 271 00c8 34020004		li	$v0, PRINT_STRING		# print error message
+ 272 00cc 3C040000		la	$a0, errorGridSize
+     00d0 34840000
+ 273 00d4 0000000C		syscall
+ 274 00d8 08000049		j 	exit				# exit main function
+ 275 00dc               badGenCount:
+ 276 00dc 34020004		li	$v0, PRINT_STRING		# print error message
+ 277 00e0 3C040000		la	$a0, errorGenerations
+     00e4 34840000
+ 278 00e8 0000000C		syscall
+ 279 00ec 08000049		j	exit				# exit main fuction
+ 280 00f0               badWindDirection:
+ 281 00f0 34020004		li	$v0, PRINT_STRING		# print error message
+ 282 00f4 3C040000		la	$a0, errorWindDirection
+     00f8 34840000
+ 283 00fc 0000000C		syscall
+ 284 0100 08000049		j 	exit				# exit main function
+ 285 0104               
+ 286 0104               goodWindDirection:
+ 287 0104               	# all static inputs are good if we made it here
+ 288 0104               	# now we will get the initial grid from the user
+ 289 0104 08000042		j	getGrid
+ 290 0108               
+ 291 0108               getGrid:
+ 292 0108 02002021		move	$a0, $s0			# pass in gridSize
+ 293 010c 0C00015E		jal 	getInitialGrid
+ 294 0110               
+ 295 0110               	# check for valid grid
+ 296 0110               	# getInitial grid returns 1 if valid, 0 if invalid
+ 297 0110               	# the error message is printed in the sub routine if invalid
+ 298 0110 0002C82A		slt	$t9, $zero, $v0			# if (v0 <= 0)
+ 299 0114 13200003		beq	$t9, $zero, exit		# error in grid
+ 300 0118               doSim:
+ 301 0118               	# _if we made it this far, all input is valid
+ 302 0118 02002021		move	$a0, $s0			# pass in gridSize
+ 303 011c 02202821		move	$a1, $s1			# pass in genCount
+ 304 0120 0C00004E		jal	simulate
+ 305 0124               
+ 306 0124               exit:
+ 307 0124               	# stack frame
+ 308 0124 8FBF0008		lw	$ra, -4+FS12($sp)
+ 309 0128 8FB10004		lw	$s1, -8+FS12($sp)
+ 310 012c 8FB00000		lw	$s0, -12+FS12($sp)
+ 311 0130 23BD000C		addi	$sp, $sp, FS12
+ 312 0134 03E00008		jr	$ra
+ 313 0138               
+ 314 0138               
+ 315 0138               # ----------------------------------------------------------------------------
+ 316 0138               
+ 317 0138               #
+ 318 0138               # Name:		simulate
+ 319 0138               # Description:	do the forest fire simulation
+ 320 0138               # Arguments:	a0:	integer representing the grid size
+ 321 0138               #		a1:	integer representing the number of generations
+ 322 0138               # Destroys:	t9
+ 323 0138               #
+ 324 0138               
+ 325 0138               simulate:
+ 326 0138               	# stack frame
+ 327 0138 23BDFFF0		addi	$sp, $sp, -FS16
+ 328 013c AFBF000C		sw	$ra, -4+FS16($sp)
+ 329 0140 AFB20008		sw	$s2, -8+FS16($sp)
+ 330 0144 AFB10004		sw	$s1, -12+FS16($sp)
+ 331 0148 AFB00000		sw	$s0, -16+FS16($sp)
+ 332 014c               
+ 333 014c               	# save local variables
+ 334 014c 00808021		move	$s0, $a0			# s0 = gridSize
+ 335 0150 00A08821		move	$s1, $a1			# s1 = genCount
+ 336 0154 22310001		addi	$s1, $s1, 1			# get genCount on correct index
+ 337 0158 34120000		li	$s2, 0				# s2 = currentGen
+ 338 015c               
+ 339 015c               	# print initial grid
+ 340 015c 02002021		move	$a0, $s0			# pass in gridSize
+ 341 0160 02402821		move	$a1, $s2			# pass in currentGen
+ 342 0164 0C0001AD		jal	printGrid
+ 343 0168 22520001		addi	$s2, $s2, 1			# currentGen += 1
+ 344 016c               
+ 345 016c               simulateLoop:
+ 346 016c 0251C82A		slt	$t9, $s2, $s1			# if (currentGen >= genCount)
+ 347 0170 13200007		beq	$t9, $zero, simulateDone	# all gens done
+ 348 0174               
+ 349 0174               	# sim one generation
+ 350 0174 02002021		move	$a0, $s0			# pass in gridSize
+ 351 0178 0C00006A		jal	advanceGeneration		# do 1 generation
+ 352 017c               
+ 353 017c               	# print out the new forest grid
+ 354 017c 02002021		move	$a0, $s0			# pass in gridSize
+ 355 0180 02402821		move	$a1, $s2			# pass in currentGen
+ 356 0184 0C0001AD		jal	printGrid
+ 357 0188               
+ 358 0188               	# increment currentGen and redo
+ 359 0188 22520001		addi	$s2, $s2, 1			# currentGen += 1
+ 360 018c 0800005B		j	simulateLoop
+ 361 0190               
+ 362 0190               simulateDone:
+ 363 0190               	# stack frame
+ 364 0190 8FBF000C		lw	$ra, -4+FS16($sp)
+ 365 0194 8FB20008		lw	$s2, -8+FS16($sp)
+ 366 0198 8FB10004		lw	$s1, -12+FS16($sp)
+ 367 019c 8FB00000		lw	$s0, -16+FS16($sp)
+ 368 01a0 23BD0010		addi	$sp, $sp, FS16
+ 369 01a4 03E00008		jr	$ra
+ 370 01a8               
+ 371 01a8               
+ 372 01a8               # ----------------------------------------------------------------------------
+ 373 01a8               
+ 374 01a8               #
+ 375 01a8               # Name:		advanceGeneration
+ 376 01a8               # Description:	advence the forest by 1 generation
+ 377 01a8               # Arguments:	a0:	integer representing the grid size
+ 378 01a8               # Destroys:	none
+ 379 01a8               #
+ 380 01a8               
+ 381 01a8               advanceGeneration:
+ 382 01a8               	# stack frame
+ 383 01a8 23BDFFF8		addi	$sp, $sp, -FS8
+ 384 01ac AFBF0004		sw	$ra, -4+FS8($sp)
+ 385 01b0 AFB00000		sw	$s0, -8+FS8($sp)
+ 386 01b4               
+ 387 01b4               	# store local vars
+ 388 01b4 00808021		move	$s0, $a0		# s0 = gridSize
+ 389 01b8               
+ 390 01b8               	# do burning cells
+ 391 01b8 02100018		mul	$a0, $s0, $s0		# pass in # of forest cells
+     01bc 00002012
+ 392 01c0 0C000082		jal	simBurningCells
+ 393 01c4               
+ 394 01c4               	# do trees burning
+ 395 01c4 02002021		move	$a0, $s0		# pass in gridSize
+ 396 01c8 0C0000A6		jal	simTreeBurn
+ 397 01cc               
+ 398 01cc               	# do trees spreading
+ 399 01cc 02002021		move	$a0, $s0		# pass in gridSize
+ 400 01d0 3C010000		lbu	$a1, windDirection	# pass in windDirection
+     01d4 90250000
+ 401 01d8 0C0000ED		jal	simTreeSpread
+ 402 01dc               
+ 403 01dc               	# move the new generation in
+ 404 01dc 02100018		mul	$a0, $s0, $s0		# pass in # of forest cells
+     01e0 00002012
+ 405 01e4 3C050000		la	$a1, newGen		# a1 = copy from array
+     01e8 34A50000
+ 406 01ec 3C060000		la	$a2, array		# a2 = copy to array
+     01f0 34C60000
+ 407 01f4 0C000146		jal 	copyArray
+ 408 01f8               
+ 409 01f8               	# stack frame
+ 410 01f8 8FBF0004		lw	$ra, -4+FS8($sp)
+ 411 01fc 8FB00000		lw	$s0, -8+FS8($sp)
+ 412 0200 23BD0008		addi	$sp, $sp, FS8
+ 413 0204 03E00008		jr	$ra
+ 414 0208               
+ 415 0208               
+ 416 0208               # ----------------------------------------------------------------------------
+ 417 0208               
+ 418 0208               #
+ 419 0208               # Name:		simBurningCells
+ 420 0208               # Description:	perform the generation change on the buring cells
+ 421 0208               #		burning cells from the previous gen become grass cells
+ 422 0208               #		  in the current gen
+ 423 0208               # Arguments:	a0:	integer representing number of cells in the forest
+ 424 0208               # Destroys:	t0, t1, t7, t8, t9
+ 425 0208               #
+ 426 0208               
+ 427 0208               simBurningCells:
+ 428 0208               	# stack frame
+ 429 0208 23BDFFF0		addi	$sp, $sp, -FS16
+ 430 020c AFBF000C		sw	$ra, -4+FS16($sp)
+ 431 0210 AFB20008		sw	$s2, -8+FS16($sp)
+ 432 0214 AFB10004		sw	$s1, -12+FS16($sp)
+ 433 0218 AFB00000		sw	$s0, -16+FS16($sp)
+ 434 021c               
+ 435 021c               	# save local vars
+ 436 021c 00808021		move	$s0, $a0		# s0 = byteCount
+ 437 0220 3C110000		la	$s1, array		# s1 = array
+     0224 36310000
+ 438 0228 3C120000		la	$s2, newGen		# s2 = newGen
+     022c 36520000
+ 439 0230 34080000		li	$t0, 0			# t0 = offsetIndex
+ 440 0234               
+ 441 0234               simBurns:
+ 442 0234 0010C82A		slt	$t9, $zero, $s0		# if (byteCount <= 0)
+ 443 0238 13200011		beq	$t9, $zero, burnsDone	# done burning
+ 444 023c               
+ 445 023c               	# get cell
+ 446 023c 0228C020		add	$t8, $s1, $t0		# t8 = array + offsetIndex
+ 447 0240 930F0000		lbu	$t7, 0($t8)		# t7 = array[offsetIndex]
+ 448 0244               
+ 449 0244               	# check for burning cell
+ 450 0244 3C010000		lbu	$t1, char_B
+     0248 90290000
+ 451 024c 11E90004		beq	$t7, $t1, burningCell	# found a burning cell
+ 452 0250 08000095		j 	notBurning		# no burning cell
+ 453 0254               
+ 454 0254               notBurning:
+ 455 0254               	# store whatever was already there
+ 456 0254 0248C020		add	$t8, $s2, $t0		# t8 = newGen + offsetIndex
+ 457 0258 A30F0000		sb	$t7, 0($t8)		# newGen[offsetIndex] = cell
+ 458 025c 0800009D		j 	burnRepeat
+ 459 0260               
+ 460 0260               burningCell:
+ 461 0260               	# store a grass in newGen
+ 462 0260 0248C020		add	$t8, $s2, $t0		# t8 = newGen + offsetIndex
+ 463 0264 3C010000		lbu	$t1, char_.
+     0268 90290000
+ 464 026c A3090000		sb	$t1, 0($t8)		# newGen[offsetIndex] = grass
+ 465 0270 0800009D		j	burnRepeat
+ 466 0274               
+ 467 0274               burnRepeat:
+ 468 0274               	# update indexes and repeat
+ 469 0274 21080001		addi	$t0, $t0, 1		# offsetIndex += 1
+ 470 0278 2210FFFF		addi	$s0, $s0, -1		# byteCount -= 1
+ 471 027c 0800008D		j 	simBurns
+ 472 0280               
+ 473 0280               burnsDone:
+ 474 0280               	# stack frame
+ 475 0280 8FBF000C		lw	$ra, -4+FS16($sp)
+ 476 0284 8FB20008		lw	$s2, -8+FS16($sp)
+ 477 0288 8FB10004		lw	$s1, -12+FS16($sp)
+ 478 028c 8FB00000		lw	$s0, -16+FS16($sp)
+ 479 0290 23BD0010		addi	$sp, $sp, FS16
+ 480 0294 03E00008		jr	$ra
+ 481 0298               
+ 482 0298               
+ 483 0298               # ----------------------------------------------------------------------------
+ 484 0298               
+ 485 0298               #
+ 486 0298               # Name:		simTreeBurn
+ 487 0298               # Description:	perform the generation change that makes trees burn
+ 488 0298               # 		a tree from the previous gen with any burning neighbors (nsew)
+ 489 0298               #		   will become a burning cell in the current gen
+ 490 0298               # Arguemtns:	a0:	integer representing the size of the forest grid
+ 491 0298               # Destroys:	t0, t1, t6, t7, t8, t9
+ 492 0298               #
+ 493 0298               
+ 494 0298               simTreeBurn:
+ 495 0298               	# stack frame
+ 496 0298 23BDFFEC		addi	$sp, $sp, -FS20
+ 497 029c AFBF0010		sw	$ra, -4+FS20($sp)
+ 498 02a0 AFB7000C		sw	$s7, -8+FS20($sp)
+ 499 02a4 AFB20008		sw	$s2, -12+FS20($sp)
+ 500 02a8 AFB10004		sw	$s1, -16+FS20($sp)
+ 501 02ac AFB00000		sw	$s0, -20+FS20($sp)
+ 502 02b0               
+ 503 02b0               	# save local vars
+ 504 02b0 00840018		mul	$s0, $a0, $a0		# s0 = byteCount
+     02b4 00008012
+ 505 02b8 3C110000		la	$s1, array		# s1 = array
+     02bc 36310000
+ 506 02c0 3C120000		la	$s2, newGen		# s2 = newGen
+     02c4 36520000
+ 507 02c8 0080B821		move	$s7, $a0		# s7 = gridSize
+ 508 02cc 34080000		li	$t0, 0			# t0 = offsetIndex
+ 509 02d0               
+ 510 02d0               treeBurnLoop:
+ 511 02d0 0010C82A		slt	$t9, $zero, $s0		# if (byteCount <= 0)
+ 512 02d4 13200030		beq	$t9, $zero, treeBurnDone# done burning trees
+ 513 02d8               
+ 514 02d8               	# get cell
+ 515 02d8 0228C020		add	$t8, $s1, $t0		# t8 = array + offsetIndex
+ 516 02dc 930F0000		lbu	$t7, 0($t8)		# t7 = array[offsetIndex]
+ 517 02e0               
+ 518 02e0               	# check for tree cell
+ 519 02e0 3C010000		lbu	$t1, char_t
+     02e4 90290000
+ 520 02e8 11E90002		beq	$t7, $t1, treeCell	# found a tree cell
+ 521 02ec 080000BC		j	notTreeCell		# no tree cell
+ 522 02f0               
+ 523 02f0               notTreeCell:
+ 524 02f0               	# ignore this cell and try the next
+ 525 02f0 080000E3		j	treeBurnRepeat
+ 526 02f4               
+ 527 02f4               treeCell:
+ 528 02f4 3C010000		lbu	$t1, char_B		# we are searching for B cells
+     02f8 90290000
+ 529 02fc               
+ 530 02fc               treeBurnNorth:
+ 531 02fc               	# check north
+ 532 02fc 240EFFFF		li	$t6, -1
+ 533 0300 01D70018		mul	$t6, $t6, $s7		# t6 = -(gridSize)
+     0304 00007012
+ 534 0308 030EC020		add	$t8, $t8, $t6		# t8 = (array + offsetIndex) - gridSize
+ 535 030c 930F0000		lbu	$t7, 0($t8)		# t7 = array[offsetIndex - gridSize]
+ 536 0310 11E90019		beq	$t7, $t1, burnTree	# found a tree to burn
+ 537 0314               
+ 538 0314               treeBurnSouth:
+ 539 0314               	# check south
+ 540 0314 0228C020		add	$t8, $s1, $t0		# t8 = array + offsetIndex
+ 541 0318 0317C020		add	$t8, $t8, $s7		# t8 = array + offsetIndex + gridSize
+ 542 031c 930F0000		lbu	$t7, 0($t8)		# t7 = array[offsetIndex + gridSize]
+ 543 0320 11E90015		beq	$t7, $t1, burnTree	# found a tree to burn
+ 544 0324               
+ 545 0324               treeBurnWest:
+ 546 0324               	# check west
+ 547 0324 0117001A		rem	$t6, $t0, $s7		# t6 = offsetIndex % gridSize
+     0328 00007010
+ 548 032c 11C00004		beq	$t6, $zero, treeBurnEast# this tree is on the left boundry
+ 549 0330 0228C020		add	$t8, $s1, $t0		# t8 = array + offsetIndex
+ 550 0334 2318FFFF		addi	$t8, $t8, -1		# t8 = array + offsetIndex - 1
+ 551 0338 930F0000		lbu	$t7, 0($t8)		# t7 = array[offsetIndex - 1]
+ 552 033c 11E9000E		beq	$t7, $t1, burnTree	# found a tree to burn
+ 553 0340               
+ 554 0340               treeBurnEast:
+ 555 0340               	# check east
+ 556 0340 210E0001		addi	$t6, $t0, 1		# t6 = offsetIndex + 1
+ 557 0344 01D7001A		rem	$t6, $t6, $s7		# t6 = (offsetIndex + 1) % gridSize
+     0348 00007010
+ 558 034c 11C00005		beq	$t6, $zero, keepTree	# this tree is on the right boundry
+ 559 0350 0228C020		add	$t8, $s1, $t0		# t8 = array + offsetIndex
+ 560 0354 23180001		addi	$t8, $t8, 1		# t8 = array + offsetIndex + 1
+ 561 0358 930F0000		lbu	$t7, 0($t8)		# t7 = array[offsetIndex + 1]
+ 562 035c 11E90006		beq	$t7, $t1, burnTree	# found a tree to burn
+ 563 0360               
+ 564 0360               	# _if we made it this far, the tree does not burn
+ 565 0360 080000D9		j	keepTree
+ 566 0364               
+ 567 0364               keepTree:
+ 568 0364               	# store the tree in the new generation
+ 569 0364 3C010000		lbu	$t7, char_t
+     0368 902F0000
+ 570 036c 0248C020		add	$t8, $s2, $t0		# t8 = newGen + offsetIndex
+ 571 0370 A30F0000		sb	$t7, 0($t8)		# newGen[offsetIndex] = tree
+ 572 0374 080000E3		j	treeBurnRepeat
+ 573 0378               
+ 574 0378               burnTree:
+ 575 0378               	# this tree burns in the new generation
+ 576 0378 0248C020		add	$t8, $s2, $t0		# t8 = newGen + offsetIndex
+ 577 037c 3C010000		lbu	$t1, char_B
+     0380 90290000
+ 578 0384 A3090000		sb	$t1, 0($t8)		# newGen[offsetIndex] = burn
+ 579 0388 080000E3		j	treeBurnRepeat
+ 580 038c               
+ 581 038c               treeBurnRepeat:
+ 582 038c               	# update indexes and repeat
+ 583 038c 21080001		addi	$t0, $t0, 1		# offsetIndex += 1
+ 584 0390 2210FFFF		addi	$s0, $s0, -1		# byteCount -= 1
+ 585 0394 080000B4		j 	treeBurnLoop
+ 586 0398               
+ 587 0398               treeBurnDone:
+ 588 0398               	# stack frame
+ 589 0398 8FBF0010		lw	$ra, -4+FS20($sp)
+ 590 039c 8FB7000C		lw	$s7, -8+FS20($sp)
+ 591 03a0 8FB20008		lw	$s2, -12+FS20($sp)
+ 592 03a4 8FB10004		lw	$s1, -16+FS20($sp)
+ 593 03a8 8FB00000		lw	$s0, -20+FS20($sp)
+ 594 03ac 23BD0014		addi	$sp, $sp, FS20
+ 595 03b0 03E00008		jr	$ra
+ 596 03b4               
+ 597 03b4               
+ 598 03b4               # ----------------------------------------------------------------------------
+ 599 03b4               
+ 600 03b4               #
+ 601 03b4               # Name:		simTreeSpread
+ 602 03b4               # Description:	perform the generation change that makes trees spread
+ 603 03b4               #		a tree from the previous gen will spread in the direction of
+ 604 03b4               #		  the wind if the neighboring cell is a grass cell
+ 605 03b4               # Arguments:	a0:	integer representing the size of the forest grid
+ 606 03b4               #		a1:	null terminated string that represents wind direction
+ 607 03b4               # Destroys:	t0, t1, t2, t6, t7, t8, t9
+ 608 03b4               #
+ 609 03b4               
+ 610 03b4               simTreeSpread:
+ 611 03b4               	# stack frame
+ 612 03b4 23BDFFE8		addi	$sp, $sp, -FS24
+ 613 03b8 AFBF0014		sw	$ra, -4+FS24($sp)
+ 614 03bc AFB70010		sw	$s7, -8+FS24($sp)
+ 615 03c0 AFB6000C		sw	$s6, -12+FS24($sp)
+ 616 03c4 AFB20008		sw	$s2, -16+FS24($sp)
+ 617 03c8 AFB10004		sw	$s1, -20+FS24($sp)
+ 618 03cc AFB00000		sw	$s0, -24+FS24($sp)
+ 619 03d0               
+ 620 03d0               	# save local vars
+ 621 03d0 00840018		mul	$s0, $a0, $a0		# s0 = byteCount
+     03d4 00008012
+ 622 03d8 3C110000		la	$s1, array		# s1 = array
+     03dc 36310000
+ 623 03e0 3C120000		la	$s2, newGen		# s2 = newGen
+     03e4 36520000
+ 624 03e8 00A0B021		move	$s6, $a1		# s6 = windDirection
+ 625 03ec 0080B821		move	$s7, $a0		# s7 = gridSize
+ 626 03f0 34080000		li	$t0, 0			# t0 = offsetIndex
+ 627 03f4               
+ 628 03f4               treeSpreadLoop:
+ 629 03f4 0010C82A		slt	$t9, $zero, $s0		# if (byteCount <= 0)
+ 630 03f8 1320003F		beq	$t9, $zero, treeSpreadDone
+ 631 03fc               
+ 632 03fc               	# get cell
+ 633 03fc 0228C020		add	$t8, $s1, $t0		# t8 = array + offsetIndex
+ 634 0400 930F0000		lbu	$t7, 0($t8)		# t7 = array[offsetIndex]
+ 635 0404               
+ 636 0404               	# check for grass cell
+ 637 0404 3C010000		lbu	$t1, char_.		# looking for . cells
+     0408 90290000
+ 638 040c 11E90002		beq	$t7, $t1, grassCell	# found grass cell
+ 639 0410 08000105		j	notGrassCell		# no grass cell
+ 640 0414               
+ 641 0414               notGrassCell:
+ 642 0414               	# ignore this cell and try the next
+ 643 0414 0800013B		j	treeSpreadRepeat
+ 644 0418               
+ 645 0418               grassCell:
+ 646 0418               	# we have a grass cell, now we look for T cells
+ 647 0418 3C010000		lbu	$t1, char_t		# searching for trees
+     041c 90290000
+ 648 0420 3C010000		lbu	$t2, char_N		# north
+     0424 902A0000
+ 649 0428 12CA0009		beq	$s6, $t2, treeSpreadNorth
+ 650 042c 3C010000		lbu	$t2, char_S		# south
+     0430 902A0000
+ 651 0434 12CA000B		beq	$s6, $t2, treeSpreadSouth
+ 652 0438 3C010000		lbu	$t2, char_E		# east
+     043c 902A0000
+ 653 0440 12CA000F		beq	$s6, $t2, treeSpreadEast
+ 654 0444 3C010000		lbu	$t2, char_W		# west
+     0448 902A0000
+ 655 044c 12CA0014		beq	$s6, $t2, treeSpreadWest
+ 656 0450               
+ 657 0450               treeSpreadNorth:
+ 658 0450               	# _if wind is north, check the south neighbor
+ 659 0450 0228C020		add	$t8, $s1, $t0		# t8 = array + offsetIndex
+ 660 0454 0317C020		add	$t8, $t8, $s7		# t8 = array + offsetIndex + gridSize
+ 661 0458 930F0000		lbu	$t7, 0($t8)		# t7 = array[offsetIndex + gridSize]
+ 662 045c 11E9001E		beq	$t7, $t1, changeGrass	# found a tree to spread onto the grass
+ 663 0460 08000131		j 	keepGrass		# no tree found to spread
+ 664 0464               
+ 665 0464               treeSpreadSouth:
+ 666 0464               	# _if wind is south, check the north neighbor
+ 667 0464 240EFFFF		li	$t6, -1
+ 668 0468 01D70018		mul	$t6, $t6, $s7		# t6 = -(gridSize)
+     046c 00007012
+ 669 0470 030EC020		add	$t8, $t8, $t6		# t8 = (array + offsetIndex) - gridSize
+ 670 0474 930F0000		lbu	$t7, 0($t8)		# t7 = array[offsetIndex - gridSize]
+ 671 0478 11E90017		beq	$t7, $t1, changeGrass	# found a tree to spread onto the grass
+ 672 047c 08000131		j	keepGrass		# no tree found to spread
+ 673 0480               
+ 674 0480               treeSpreadEast:
+ 675 0480               	# _if wind is east, check the west neighbor
+ 676 0480 0117001A		rem	$t6, $t0, $s7		# t6 = offsetIndex % gridSize
+     0484 00007010
+ 677 0488 11C0000E		beq	$t6, $zero, keepGrass	# grass is on the left boundry
+ 678 048c 0228C020		add	$t8, $s1, $t0		# t8 = array + offsetIndex
+ 679 0490 2318FFFF		addi	$t8, $t8, -1		# t8 = array + offsetIndex - 1
+ 680 0494 930F0000		lbu	$t7, 0($t8)		# t7 = array[offsetIndex - 1]
+ 681 0498 11E9000F		beq	$t7, $t1, changeGrass	# found a tree to spread onto the grass
+ 682 049c 08000131		j	keepGrass		# no tree found to spread
+ 683 04a0               
+ 684 04a0               treeSpreadWest:
+ 685 04a0               	# _if wind is west, check the east neighbor
+ 686 04a0 210E0001		addi	$t6, $t0, 1		# t6 = offsetIndex + 1
+ 687 04a4 01D7001A		rem	$t6, $t6, $s7		# t6 = (offsetIndex + 1) % gridSize
+     04a8 00007010
+ 688 04ac 11C00005		beq	$t6, $zero, keepGrass	# grass is on the right boundry
+ 689 04b0 0228C020		add	$t8, $s1, $t0		# t8 = array + offsetIndex
+ 690 04b4 23180001		addi	$t8, $t8, 1		# t8 = array + offsetIndex + 1
+ 691 04b8 930F0000		lbu	$t7, 0($t8)		# t7 = array[offsetIndex + 1]
+ 692 04bc 11E90006		beq	$t7, $t1, changeGrass	# found a tree to spread onto the grass
+ 693 04c0 08000131		j	keepGrass		# no tree found to spread
+ 694 04c4               
+ 695 04c4               keepGrass:
+ 696 04c4               	# store a grass cell in the new generation
+ 697 04c4 3C010000		lbu	$t7, char_.
+     04c8 902F0000
+ 698 04cc 0248C020		add	$t8, $s2, $t0		# t8 = newGen + offsetIndex
+ 699 04d0 A30F0000		sb	$t7, 0($t8)		# newGen[offsetIndex] = grass
+ 700 04d4 0800013B		j	treeSpreadRepeat
+ 701 04d8               
+ 702 04d8               changeGrass:
+ 703 04d8               	# transform the grass cell into a new tree
+ 704 04d8 3C010000		lbu	$t7, char_t
+     04dc 902F0000
+ 705 04e0 0248C020		add	$t8, $s2, $t0		# t8 = newGen + offsetIndex
+ 706 04e4 A30F0000		sb	$t7, 0($t8)		# newGen[offsetIndex] = tree
+ 707 04e8 0800013B		j	treeSpreadRepeat
+ 708 04ec               
+ 709 04ec               
+ 710 04ec               treeSpreadRepeat:
+ 711 04ec               	# update indexes and repeat
+ 712 04ec 21080001		addi	$t0, $t0, 1		# offsetIndex += 1
+ 713 04f0 2210FFFF		addi	$s0, $s0, -1		# byteCount -=1
+ 714 04f4 080000FD		j	treeSpreadLoop
+ 715 04f8               
+ 716 04f8               treeSpreadDone:
+ 717 04f8               	# stack frame
+ 718 04f8 8FBF0014		lw	$ra, -4+FS24($sp)
+ 719 04fc 8FB70010		lw	$s7, -8+FS24($sp)
+ 720 0500 8FB6000C		lw	$s6, -12+FS24($sp)
+ 721 0504 8FB20008		lw	$s2, -16+FS24($sp)
+ 722 0508 8FB10004		lw	$s1, -20+FS24($sp)
+ 723 050c 8FB00000		lw	$s0, -24+FS24($sp)
+ 724 0510 23BD0018		addi	$sp, $sp, FS24
+ 725 0514 03E00008		jr	$ra
+ 726 0518               
+ 727 0518               
+ 728 0518               # ----------------------------------------------------------------------------
+ 729 0518               
+ 730 0518               #
+ 731 0518               # Name:		copyArray
+ 732 0518               # Description:	move the contents of one array to another
+ 733 0518               # Arguments:	a0:	integer representing number of bytes to copy over
+ 734 0518               #		a1:	address of array to take bytes from
+ 735 0518               #		a2:	address of array to copy bytes to
+ 736 0518               # Destorys:	t0, t7, t8, t9
+ 737 0518               #
+ 738 0518               
+ 739 0518               copyArray:
+ 740 0518               	# stack frame
+ 741 0518 23BDFFF0		addi	$sp, $sp, -FS16
+ 742 051c AFBF000C		sw	$ra, -4+FS16($sp)
+ 743 0520 AFB20008		sw	$s2, -8+FS16($sp)
+ 744 0524 AFB10004		sw	$s1, -12+FS16($sp)
+ 745 0528 AFB00000		sw	$s0, -16+FS16($sp)
+ 746 052c               
+ 747 052c               	# save local vars
+ 748 052c 00808021		move	$s0, $a0		# s0 = byteCount
+ 749 0530 00A08821		move	$s1, $a1		# s1 = sourceArray
+ 750 0534 00C09021		move	$s2, $a2		# s2 = destArray
+ 751 0538 34080000		li	$t0, 0			# t0 = offsetIndex
+ 752 053c               
+ 753 053c               copyBytes:
+ 754 053c 0010C82A		slt	$t9, $zero, $s0		# if (byteCount <= 0)
+ 755 0540 13200007		beq	$t9, $zero, copyDone	# done copying
+ 756 0544               
+ 757 0544               	# get byte
+ 758 0544 0228C020		add	$t8, $s1, $t0		# t8 = sourceArray + offsetIndex
+ 759 0548 930F0000		lbu	$t7, 0($t8)		# t7 = sourceArray[offsetIndex]
+ 760 054c               
+ 761 054c               	# store byte
+ 762 054c 0248C020		add	$t8, $s2, $t0		# t8 = destArray + offsetIndex
+ 763 0550 A30F0000		sb	$t7, 0($t8)		# destArray[offsetIndex] = byte
+ 764 0554               
+ 765 0554               	# increment index and repeat
+ 766 0554 21080001		addi	$t0, $t0, 1		# offsetIndex += 1
+ 767 0558 2210FFFF		addi	$s0, $s0, -1		# byteCount -= 1
+ 768 055c 0800014F		j 	copyBytes
+ 769 0560               
+ 770 0560               copyDone:
+ 771 0560               	# stack frame
+ 772 0560 8FBF000C		lw	$ra, -4+FS16($sp)
+ 773 0564 8FB20008		lw	$s2, -8+FS16($sp)
+ 774 0568 8FB10004		lw	$s1, -12+FS16($sp)
+ 775 056c 8FB00000		lw	$s0, -16+FS16($sp)
+ 776 0570 23BD0010		addi	$sp, $sp, FS16
+ 777 0574 03E00008		jr	$ra
+ 778 0578               
+ 779 0578               
+ 780 0578               # ----------------------------------------------------------------------------
+ 781 0578               
+ 782 0578               #
+ 783 0578               # Name:		getInitialGrid
+ 784 0578               # Description:	get the initial forest from user input
+ 785 0578               # Arguments:	a0:	integer representing the grid size
+ 786 0578               # Returns:	v1	1	if valid grid
+ 787 0578               #			0	otherwise
+ 788 0578               # Destroys:	t0, t1, t2, t3, t9
+ 789 0578               #
+ 790 0578               
+ 791 0578               getInitialGrid:
+ 792 0578               	# stack frame
+ 793 0578 23BDFFF8		addi	$sp, $sp, -FS8
+ 794 057c AFBF0004		sw	$ra, -4+FS8($sp)
+ 795 0580 AFB00000		sw	$s0, -8+FS8($sp)
+ 796 0584               
+ 797 0584               	# save local vars
+ 798 0584 00808021		move	$s0, $a0		# s0 = gridSize
+ 799 0588 34080000		li	$t0, 0			# t0 = offestIndex
+ 800 058c 02005021		move	$t2, $s0		# t2 = stripsRemaining
+ 801 0590 214AFFFF		addi	$t2, $t2, -1		# get stripsRemianing on 0 indexing
+ 802 0594               
+ 803 0594               readGrid:
+ 804 0594 0140C82A		slt	$t9, $t2, $zero		# if (stripsRemaining < 0)
+ 805 0598 1720000E		bne	$t9, $zero, doneReading	# done reading
+ 806 059c               
+ 807 059c               	# read in a grid strip of input
+ 808 059c 3C040000		la	$a0, array		# a0 = array
+     05a0 34840000
+ 809 05a4 00882020		add	$a0, $a0, $t0		# a0 = array + offsetIndex
+ 810 05a8 22050001		addi	$a1, $s0, 1		# a1 = gridSize + 1 (null terminator)
+ 811 05ac 34020008		li	$v0, READ_STRING
+ 812 05b0 0000000C		syscall
+ 813 05b4               
+ 814 05b4               	# get rid of newline character in input stream
+ 815 05b4 3C040000		la	$a0, junk
+     05b8 34840000
+ 816 05bc 20050002		addi	$a1, $zero, 2
+ 817 05c0 34020008		li	$v0, READ_STRING
+ 818 05c4 0000000C		syscall
+ 819 05c8               
+ 820 05c8               	# update indexes and repeat
+ 821 05c8 01104020		add	$t0, $t0, $s0		# offestIndex += gridSize
+ 822 05cc 214AFFFF		addi	$t2, $t2, -1		# stripsRemaining -= 1
+ 823 05d0 08000165		j readGrid
+ 824 05d4               
+ 825 05d4               doneReading:
+ 826 05d4               	# _if we made it here, the initial board has been read
+ 827 05d4               	# we can now check the initial grid for valid characters
+ 828 05d4               
+ 829 05d4               	# this gets rid of the terminator placed at the end
+ 830 05d4 3C010000		lbu	$t9, char_star
+     05d8 90390000
+ 831 05dc 3C090000		la	$t1, array
+     05e0 35290000
+ 832 05e4 01094020		add	$t0, $t0, $t1
+ 833 05e8 A1190000		sb	$t9, 0($t0)
+ 834 05ec               
+ 835 05ec               	# initialize variables
+ 836 05ec 34080000		li	$t0, 0			# t0 = offestIndex
+ 837 05f0 3C090000		la	$t1, array		# t1 = array
+     05f4 35290000
+ 838 05f8               checkGrid:
+ 839 05f8 0109C820		add	$t9, $t0, $t1		# t9 = array + offsetIndex
+ 840 05fc 932A0000		lbu	$t2, 0($t9)		# t2 = array[offestIndex] = char
+ 841 0600 3C010000		lbu	$t3, char_star		# a * indicates the end of the grid
+     0604 902B0000
+ 842 0608 114B0012		beq	$t2, $t3, goodGrid	# if we make it to a star, good grid
+ 843 060c 3C010000		lbu	$t3, char_B		# check for B
+     0610 902B0000
+ 844 0614 114B000D		beq	$t2, $t3, goodChar
+ 845 0618 3C010000		lbu	$t3, char_t		# check for t
+     061c 902B0000
+ 846 0620 114B000A		beq	$t2, $t3, goodChar
+ 847 0624 3C010000		lbu	$t3, char_.		# check for .
+     0628 902B0000
+ 848 062c 114B0007		beq	$t2, $t3, goodChar
+ 849 0630               	#_if the char made it this far, this char is not recognized
+ 850 0630 0800018D		j 	badGridChar
+ 851 0634               
+ 852 0634               badGridChar:
+ 853 0634 34020004		li	$v0, PRINT_STRING
+ 854 0638 3C040000		la	$a0, errorGridCharacter	# print error message
+     063c 34840000
+ 855 0640 0000000C		syscall
+ 856 0644 34020000		li	$v0, 0			# return 0 for bad grid
+ 857 0648 08000197		j       getGridReturn
+ 858 064c               
+ 859 064c               goodChar:
+ 860 064c               	# update index and repeat
+ 861 064c 21080001		addi	$t0, $t0, 1		# offsetIndex += 1
+ 862 0650 0800017E		j	checkGrid		# go back and check next char
+ 863 0654               
+ 864 0654               goodGrid:
+ 865 0654               	# _if we made it to this point, all of the user input is good!!!
+ 866 0654 34020001		li	$v0, 1			# return 1 for good grid
+ 867 0658 08000197		j       getGridReturn
+ 868 065c               
+ 869 065c               getGridReturn:
+ 870 065c               	# stack frame
+ 871 065c 8FBF0004		lw	$ra, -4+FS8($sp)
+ 872 0660 8FB00000		lw	$s0, -8+FS8($sp)
+ 873 0664 23BD0008		addi	$sp, $sp, FS8
+ 874 0668 03E00008		jr	$ra
+ 875 066c               
+ 876 066c               
+ 877 066c               # ----------------------------------------------------------------------------
+ 878 066c               
+ 879 066c               #
+ 880 066c               # Name:		printBanner
+ 881 066c               # Description:	print out the program's banner
+ 882 066c               # Arguemnts:	none
+ 883 066c               # Returns:	none
+ 884 066c               # Destroys:	none
+ 885 066c               #
+ 886 066c               
+ 887 066c               printBanner:
+ 888 066c               	# stack frame
+ 889 066c 23BDFFFC		addi	$sp, $sp, -FS4
+ 890 0670 AFBF0000		sw	$ra, -4+FS4($sp)
+ 891 0674               
+ 892 0674 34020004		li	$v0, PRINT_STRING
+ 893 0678 3C040000		la	$a0, banner1		# top line
+     067c 34840000
+ 894 0680 0000000C		syscall
+ 895 0684 3C040000		la	$a0, banner2		# forest fire text
+     0688 34840000
+ 896 068c 0000000C		syscall
+ 897 0690 3C040000		la	$a0, banner1		# bottom line
+     0694 34840000
+ 898 0698 0000000C		syscall
+ 899 069c 3C040000		la	$a0, newline		# blank line
+     06a0 34840000
+ 900 06a4 0000000C		syscall
+ 901 06a8               
+ 902 06a8               	# stack frame
+ 903 06a8 8FBF0000		lw	$ra, -4+FS4($sp)
+ 904 06ac 23BD0004		addi	$sp, $sp, FS4
+ 905 06b0 03E00008		jr	$ra
+ 906 06b4               
+ 907 06b4               
+ 908 06b4               # ----------------------------------------------------------------------------
+ 909 06b4               
+ 910 06b4               #
+ 911 06b4               # Name:		printGrid
+ 912 06b4               # Description:	print out the forest grid
+ 913 06b4               # Arguments:	a0:	integer representing grid size
+ 914 06b4               #		a1:	integer representing current generation
+ 915 06b4               # Returns:	none
+ 916 06b4               # Destorys:	t9
+ 917 06b4               #
+ 918 06b4               
+ 919 06b4               printGrid:
+ 920 06b4               	# stack frame
+ 921 06b4 23BDFFEC		addi	$sp, $sp, -FS20
+ 922 06b8 AFBF0010		sw	$ra, -4+FS20($sp)
+ 923 06bc AFB7000C		sw	$s7, -8+FS20($sp)
+ 924 06c0 AFB60008		sw	$s6, -12+FS20($sp)
+ 925 06c4 AFB10004		sw	$s1, -16+FS20($sp)
+ 926 06c8 AFB00000		sw	$s0, -20+FS20($sp)
+ 927 06cc               
+ 928 06cc               	# save local vars
+ 929 06cc 00808021		move	$s0, $a0		# s0 = gridSize
+ 930 06d0 00A08821		move	$s1, $a1		# s1 = currentGen
+ 931 06d4 0080B021		move	$s6, $a0		# s6 = gridRows
+ 932 06d8 34170000		li	$s7, 0			# s7 = offsetIndex
+ 933 06dc               
+ 934 06dc               	# print out generation heading
+ 935 06dc 34020004		li	$v0, PRINT_STRING
+ 936 06e0 3C040000		la	$a0, genHeadL		# leftside header '==== #'
+     06e4 34840000
+ 937 06e8 0000000C		syscall
+ 938 06ec 34020001		li	$v0, PRINT_INT
+ 939 06f0 02202021		move	$a0, $s1		# currentGen 'n'
+ 940 06f4 0000000C		syscall
+ 941 06f8 34020004		li	$v0, PRINT_STRING
+ 942 06fc 3C040000		la	$a0, genHeadR		# rightside header ' ====\n'
+     0700 34840000
+ 943 0704 0000000C		syscall
+ 944 0708               
+ 945 0708               	# print top line of grid box
+ 946 0708 02002021		move	$a0, $s0		# pass in grid width
+ 947 070c 0C0001D9		jal	printGridLine
+ 948 0710               
+ 949 0710               printEachLine:
+ 950 0710               	# for each line of characters
+ 951 0710 0016C82A		slt	$t9, $zero, $s6		# if (gridRows <= 0)
+ 952 0714 13200006		beq	$t9, $zero, eachLineDone# done printing
+ 953 0718               
+ 954 0718               	# print 1 line of characters
+ 955 0718 02002021		move	$a0, $s0		# pass in gridSize
+ 956 071c 02E02821		move	$a1, $s7		# pass in offsetIndex
+ 957 0720 0C0001F0		jal	printGridChars
+ 958 0724               
+ 959 0724               	# update indexes and repeat
+ 960 0724 02F0B820		add	$s7, $s7, $s0		# offsetIndex += gridSize
+ 961 0728 22D6FFFF		addi	$s6, $s6, -1		# gridRows -= 1
+ 962 072c 080001C4		j 	printEachLine
+ 963 0730               
+ 964 0730               eachLineDone:
+ 965 0730               	# print bottom line of grid box
+ 966 0730 02002021		move	$a0, $s0		# pass in grid width
+ 967 0734 0C0001D9		jal	printGridLine
+ 968 0738               
+ 969 0738               	# print one last newline character
+ 970 0738 34020004		li	$v0, PRINT_STRING
+ 971 073c 3C040000		la	$a0, newline		# newline after each generation
+     0740 34840000
+ 972 0744 0000000C		syscall
+ 973 0748               
+ 974 0748               	# stack frame
+ 975 0748 8FBF0010		lw	$ra, -4+FS20($sp)
+ 976 074c 8FB7000C		lw	$s7, -8+FS20($sp)
+ 977 0750 8FB60008		lw	$s6, -12+FS20($sp)
+ 978 0754 8FB10004		lw	$s1, -16+FS20($sp)
+ 979 0758 8FB00000		lw	$s0, -20+FS20($sp)
+ 980 075c 23BD0014		addi	$sp, $sp, FS20
+ 981 0760 03E00008		jr	$ra
+ 982 0764               
+ 983 0764               
+ 984 0764               # ----------------------------------------------------------------------------
+ 985 0764               
+ 986 0764               #
+ 987 0764               # Name: 	printGridLine
+ 988 0764               # Description:	print out the top/bottom border line of the forest grid
+ 989 0764               # Arguments:	a0:	integer representing the grid width
+ 990 0764               # Returns:	none
+ 991 0764               # Destroys:	t0, t9
+ 992 0764               #
+ 993 0764               
+ 994 0764               printGridLine:
+ 995 0764               	# stack frame
+ 996 0764 23BDFFFC		addi	$sp, $sp, -FS4
+ 997 0768 AFBF0000		sw	$ra, -4+FS4($sp)
+ 998 076c               
+ 999 076c               	# save local vars
+1000 076c 00804021		move	$t0, $a0		# t0 = gridWidth
+1001 0770               
+1002 0770               	# print out left plus sign
+1003 0770 34020004		li	$v0, PRINT_STRING
+1004 0774 3C040000		la	$a0, char_plus		# left plus sign
+     0778 34840000
+1005 077c 0000000C		syscall
+1006 0780               
+1007 0780               printLineSegments:
+1008 0780               	# print out 1 line segment for each gridWidth
+1009 0780 0008C82A		slt	$t9, $zero, $t0		# if (gridWidth <= 0)
+1010 0784 13200005		beq	$t9, $zero, linesDone	# done printing
+1011 0788 3C040000		la	$a0, char_dash
+     078c 34840000
+1012 0790 0000000C		syscall
+1013 0794               
+1014 0794               	# udpate index and repeat
+1015 0794 2108FFFF		addi	$t0, $t0, -1		# gridWidth -= 1
+1016 0798 080001E0		j 	printLineSegments
+1017 079c               
+1018 079c               linesDone:
+1019 079c               	# print out right plus sign
+1020 079c 3C040000		la	$a0, char_plus		# right plus sign
+     07a0 34840000
+1021 07a4 0000000C		syscall
+1022 07a8               
+1023 07a8               	# print out one last newline
+1024 07a8 3C040000		la	$a0, newline		# newline at the end
+     07ac 34840000
+1025 07b0 0000000C		syscall
+1026 07b4               
+1027 07b4               	# stack frame
+1028 07b4 8FBF0000		lw	$ra, -4+FS4($sp)
+1029 07b8 23BD0004		addi	$sp, $sp, FS4
+1030 07bc 03E00008		jr	$ra
+1031 07c0               
+1032 07c0               
+1033 07c0               # ----------------------------------------------------------------------------
+1034 07c0               
+1035 07c0               # Name:		printGridChars
+1036 07c0               # Description:	print out one line of characters from the forest grid
+1037 07c0               # Arguments:	a0:	integer representing the grid width
+1038 07c0               #		a1:	integer representing the offset index of the 1st char
+1039 07c0               # Returns:	none
+1040 07c0               # Destroys:	t0, t1, t2, t3, t9
+1041 07c0               #
+1042 07c0               
+1043 07c0               printGridChars:
+1044 07c0               	# stack frame
+1045 07c0 23BDFFFC		addi	$sp, $sp, -FS4
+1046 07c4 AFBF0000		sw	$ra, -4+FS4($sp)
+1047 07c8               
+1048 07c8               	# save local vars
+1049 07c8 00804021		move	$t0, $a0		# t0 = gridWidth
+1050 07cc 00A04821		move	$t1, $a1		# t1 = offsetIndex
+1051 07d0               
+1052 07d0               	# print out lift side grid box line
+1053 07d0 34020004		li	$v0, PRINT_STRING
+1054 07d4 3C040000		la	$a0, char_line		# left side line
+     07d8 34840000
+1055 07dc 0000000C		syscall
+1056 07e0               
+1057 07e0               printChars:
+1058 07e0               	# print out chars from 1 line
+1059 07e0 0008C82A		slt	$t9, $zero, $t0		# if (gridWidth <= 0)
+1060 07e4 1320000C		beq	$t9, $zero, charsDone	# done printing
+1061 07e8               
+1062 07e8               	# print out 1 char
+1063 07e8 34020004		li	$v0, PRINT_STRING
+1064 07ec 3C0A0000		la	$t2, array		# t2 = array
+     07f0 354A0000
+1065 07f4 01495020		add	$t2, $t2, $t1		# t2 = array + offsetIndex
+1066 07f8 914B0000		lbu	$t3, 0($t2)		# t3 = array[offsetIndex]
+1067 07fc 3C040000		la	$a0, buff_char		# a0 = charBuffer
+     0800 34840000
+1068 0804 A08B0000		sb	$t3, 0($a0)		# charBuffer = char
+1069 0808 0000000C		syscall
+1070 080c               
+1071 080c               	# update indexes and repeat
+1072 080c 2108FFFF		addi	$t0, $t0, -1		# gridWidth -= 1
+1073 0810 21290001		addi	$t1, $t1, 1		# offsetIndex += 1
+1074 0814 080001F8		j printChars
+1075 0818               
+1076 0818               charsDone:
+1077 0818               	# print out right side grid box line
+1078 0818 34040004		li	$a0, PRINT_STRING
+1079 081c 3C040000		la	$a0, char_line		# right side line
+     0820 34840000
+1080 0824 0000000C		syscall
+1081 0828               
+1082 0828               	# one last newline at the end of the row
+1083 0828 3C040000		la	$a0, newline		# newline at the end
+     082c 34840000
+1084 0830 0000000C		syscall
+1085 0834               
+1086 0834               	# stack frame
+1087 0834 8FBF0000		lw	$ra, -4+FS4($sp)
+1088 0838 23BD0004		addi	$sp, $sp, FS4
+1089 083c 03E00008		jr	$ra
+1090 0840               
+1091 0840               
+1092 0840               # ----------------------------------------------------------------------------
+1093 0840               
+1094 0840               #
+1095 0840               # End of the forestfire program
+1096 0840               #
+
+
+FS12                = 0000000C   
+FS16                = 00000010   
+FS20                = 00000014   
+FS24                = 00000018   
+FS4                 = 00000004   
+FS8                 = 00000008   
+PRINT_INT           = 00000001   
+PRINT_STRING        = 00000004   
+READ_INT            = 00000005   
+READ_STRING         = 00000008   
+advanceGeneration     000001A8 R  text 
+array                 000000E5 R  data 
+arrayLowerPad         00000469 R  data 
+arrayUpperPad         000000C7 R  data 
+badGenCount           000000DC R  text 
+badGridChar           00000634 R  text 
+badGridSize           000000C8 R  text 
+badWindDirection      000000F0 R  text 
+banner1               00000089 R  data 
+banner2               0000009A R  data 
+buff_char             000000C1 R  data 
+burnRepeat            00000274 R  text 
+burnTree              00000378 R  text 
+burningCell           00000260 R  text 
+burnsDone             00000280 R  text 
+changeGrass           000004D8 R  text 
+char_.                00000087 R  data 
+char_B                00000085 R  data 
+char_E                00000082 R  data 
+char_N                00000081 R  data 
+char_S                00000083 R  data 
+char_W                00000084 R  data 
+char_dash             000000BD R  data 
+char_line             000000BF R  data 
+char_plus             000000BB R  data 
+char_star             00000088 R  data 
+char_t                00000086 R  data 
+charsDone             00000818 R  text 
+checkGrid             000005F8 R  text 
+copyArray             00000518 R  text 
+copyBytes             0000053C R  text 
+copyDone              00000560 R  text 
+doSim                 00000118 R  text 
+doneReading           000005D4 R  text 
+eachLineDone          00000730 R  text 
+errorGenerations      0000001A R  data 
+errorGridCharacter    0000005F R  data 
+errorGridSize         00000000 R  data 
+errorWindDirection    00000040 R  data 
+exit                  00000124 R  text 
+genHeadL              000000AD R  data 
+genHeadR              000000B4 R  data 
+getGrid               00000108 R  text 
+getGridReturn         0000065C R  text 
+getInitialGrid        00000578 R  text 
+goodChar              0000064C R  text 
+goodGrid              00000654 R  text 
+goodWindDirection     00000104 R  text 
+grassCell             00000418 R  text 
+junk                  000000C3 R  data 
+keepGrass             000004C4 R  text 
+keepTree              00000364 R  text 
+linesDone             0000079C R  text 
+main                  00000000 RG text 
+newGen                00000487 R  data 
+newline               000000AB R  data 
+notBurning            00000254 R  text 
+notGrassCell          00000414 R  text 
+notTreeCell           000002F0 R  text 
+printBanner           0000066C R  text 
+printChars            000007E0 R  text 
+printEachLine         00000710 R  text 
+printGrid             000006B4 R  text 
+printGridChars        000007C0 R  text 
+printGridLine         00000764 R  text 
+printLineSegments     00000780 R  text 
+readGrid              00000594 R  text 
+simBurningCells       00000208 R  text 
+simBurns              00000234 R  text 
+simTreeBurn           00000298 R  text 
+simTreeSpread         000003B4 R  text 
+simulate              00000138 R  text 
+simulateDone          00000190 R  text 
+simulateLoop          0000016C R  text 
+treeBurnDone          00000398 R  text 
+treeBurnEast          00000340 R  text 
+treeBurnLoop          000002D0 R  text 
+treeBurnNorth         000002FC R  text 
+treeBurnRepeat        0000038C R  text 
+treeBurnSouth         00000314 R  text 
+treeBurnWest          00000324 R  text 
+treeCell              000002F4 R  text 
+treeSpreadDone        000004F8 R  text 
+treeSpreadEast        00000480 R  text 
+treeSpreadLoop        000003F4 R  text 
+treeSpreadNorth       00000450 R  text 
+treeSpreadRepeat      000004EC R  text 
+treeSpreadSouth       00000464 R  text 
+treeSpreadWest        000004A0 R  text 
+windDirection         000000C5 R  data 
